@@ -48,12 +48,43 @@ app.get('/api/status', (req, res) => {
 // Error Middleware
 app.use(errorHandler);
 
-// Database Connection
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/gym-db';
+// Database Connection Singleton for Serverless
+let cachedDb = null;
 
-mongoose.connect(MONGO_URI)
-    .then(() => console.log('Connected to MongoDB'))
-    .catch((err) => console.error('Database connection error:', err));
+const connectToDatabase = async () => {
+    if (cachedDb) {
+        return cachedDb;
+    }
+
+    const MONGO_URI = process.env.MONGO_URI;
+    if (!MONGO_URI) {
+        console.error('MONGO_URI is missing in environment variables!');
+        throw new Error('MONGO_URI is not defined');
+    }
+
+    try {
+        console.log('Connecting to MongoDB...');
+        const db = await mongoose.connect(MONGO_URI, {
+            serverSelectionTimeoutMS: 5000,
+        });
+        cachedDb = db;
+        console.log('Connected to MongoDB');
+        return db;
+    } catch (err) {
+        console.error('Database connection error:', err);
+        throw err;
+    }
+};
+
+// Middleware to ensure DB connection
+app.use(async (req, res, next) => {
+    try {
+        await connectToDatabase();
+        next();
+    } catch (err) {
+        res.status(500).json({ message: 'Database connection failed', error: err.message });
+    }
+});
 
 // Export for Vercel
 module.exports = app;
