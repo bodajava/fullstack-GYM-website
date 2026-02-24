@@ -38,16 +38,20 @@ app.get('/', (req, res) => {
 app.use(errorHandler);
 
 // Database Connection
-const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/gym-db';
 
 mongoose.connect(MONGO_URI)
-    .then(() => {
-        console.log('Connected to MongoDB');
-        app.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
-        });
-    })
-    .catch((err) => {
-        console.error('Database connection error:', err);
+    .then(() => console.log('Connected to MongoDB'))
+    .catch((err) => console.error('Database connection error:', err));
+
+// Export for Vercel
+module.exports = app;
+
+// Only listen if not running on Vercel
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 5050;
+    app.listen(PORT, () => {
+        console.log(`Server is running locally on port ${PORT}`);
     });
+}
+
