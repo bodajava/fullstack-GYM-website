@@ -38,7 +38,9 @@ export default function RegisterPage() {
             toast.success("ACCOUNT CREATED! PLEASE LOGIN TO CONTINUE.");
             router.push("/login");
         } catch (error: any) {
-            toast.error(error.response?.data?.message || "REGISTRATION FAILED. TRY AGAIN.");
+            console.error("Registration Error Detail:", error);
+            const message = error.response?.data?.message || error.message || "REGISTRATION FAILED. TRY AGAIN.";
+            toast.error(message);
         } finally {
             setLoading(false);
         }

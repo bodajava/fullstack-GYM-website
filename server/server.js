@@ -17,7 +17,10 @@ const bookingRoutes = require('./routes/bookingRoutes');
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: true, // Allow all origins for easier debugging
+    credentials: true
+}));
 app.use(express.json());
 app.use(morgan('dev'));
 
@@ -29,9 +32,17 @@ app.use('/api/memberships', membershipRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/bookings', bookingRoutes);
 
-// Basic Route
+// Basic Route & Health Check
 app.get('/', (req, res) => {
     res.json({ message: 'Gym Website API is running...' });
+});
+
+app.get('/api/status', (req, res) => {
+    res.json({
+        status: 'Operational',
+        database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+        timestamp: new Date()
+    });
 });
 
 // Error Middleware
