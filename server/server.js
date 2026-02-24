@@ -24,6 +24,58 @@ app.use(cors({
 app.use(express.json());
 app.use(morgan('dev'));
 
+// Database Connection Singleton for Serverless
+let cachedDb = null;
+
+const connectToDatabase = async () => {
+    if (cachedDb && mongoose.connection.readyState === 1) {
+        return cachedDb;
+    }
+
+    const MONGO_URI = process.env.MONGO_URI;
+    if (!MONGO_URI) {
+        console.error('MONGO_URI is missing in environment variables!');
+        throw new Error('MONGO_URI is not defined');
+    }
+
+    try {
+        console.log('Connecting to MongoDB...');
+        // Close existing connection if it's broken
+        if (mongoose.connection.readyState !== 0) {
+            await mongoose.disconnect();
+        }
+
+        const db = await mongoose.connect(MONGO_URI, {
+            serverSelectionTimeoutMS: 5000,
+        });
+        cachedDb = db;
+        console.log('Connected to MongoDB');
+        return db;
+    } catch (err) {
+        console.error('Database connection error:', err);
+        throw err;
+    }
+};
+
+// Middleware to ensure DB connection
+app.use(async (req, res, next) => {
+    // Skip DB for basic root or health checks if needed, but here we want it for /status
+    try {
+        await connectToDatabase();
+        next();
+    } catch (err) {
+        // If it's a critical route, fail
+        if (req.path.startsWith('/api/')) {
+            return res.status(500).json({
+                message: 'Database connection failed',
+                error: err.message,
+                hint: 'Check if MONGO_URI is correct and IP whitelisting is enabled in MongoDB Atlas.'
+            });
+        }
+        next();
+    }
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/programs', programRoutes);
@@ -41,50 +93,13 @@ app.get('/api/status', (req, res) => {
     res.json({
         status: 'Operational',
         database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-        timestamp: new Date()
+        timestamp: new Date(),
+        env: process.env.NODE_ENV
     });
 });
 
 // Error Middleware
 app.use(errorHandler);
-
-// Database Connection Singleton for Serverless
-let cachedDb = null;
-
-const connectToDatabase = async () => {
-    if (cachedDb) {
-        return cachedDb;
-    }
-
-    const MONGO_URI = process.env.MONGO_URI;
-    if (!MONGO_URI) {
-        console.error('MONGO_URI is missing in environment variables!');
-        throw new Error('MONGO_URI is not defined');
-    }
-
-    try {
-        console.log('Connecting to MongoDB...');
-        const db = await mongoose.connect(MONGO_URI, {
-            serverSelectionTimeoutMS: 5000,
-        });
-        cachedDb = db;
-        console.log('Connected to MongoDB');
-        return db;
-    } catch (err) {
-        console.error('Database connection error:', err);
-        throw err;
-    }
-};
-
-// Middleware to ensure DB connection
-app.use(async (req, res, next) => {
-    try {
-        await connectToDatabase();
-        next();
-    } catch (err) {
-        res.status(500).json({ message: 'Database connection failed', error: err.message });
-    }
-});
 
 // Export for Vercel
 module.exports = app;
